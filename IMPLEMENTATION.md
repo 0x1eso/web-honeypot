@@ -157,294 +157,151 @@ int main() {
 
 ---
 
-## Phase 1 — Kotlin API 서버 (`api/`)
+## Phase 1 — Kotlin API 서버 (`api/`) ✅ 완료
 
-### STEP 1 — Database.kt
+### 구현된 파일
 
-Exposed ORM으로 테이블 정의 + SQLite 연결.
+| 파일 | 역할 |
+|---|---|
+| `Application.kt` | 진입점, DB 초기화, 분류기 코루틴 실행 |
+| `Database.kt` | Exposed ORM 테이블 정의 + SQLite 연결 |
+| `AttackClassifier.kt` | attack_type NULL 행 분류 후 UPDATE (5초 주기) |
+| `Routing.kt` | `/api/logs`, `/api/stats`, `/api/top-ips` |
+| `Models.kt` | 직렬화용 data class |
+| `plugins/Serialization.kt` | JSON 응답 설정 |
+| `plugins/Cors.kt` | CORS 허용 |
+| `src/main/resources/logback.xml` | 로그 포맷 |
 
-**파일**: `api/src/main/kotlin/com/honeypot/Database.kt`
+### 분류 규칙 (AttackClassifier)
 
-```kotlin
-// 구현 내용
-object AttackLogs : Table("attack_logs") {
-    val id         = integer("id").autoIncrement()
-    val timestamp  = text("timestamp")
-    val ip         = text("ip")
-    val method     = text("method")
-    val path       = text("path")
-    val userAgent  = text("user_agent").nullable()
-    val body       = text("body").nullable()
-    val attackType = text("attack_type").nullable()
-    override val primaryKey = PrimaryKey(id)
-}
+| 유형 | 판단 기준 |
+|---|---|
+| SQLi | path/body에 `select`, `union`, `--`, `'`, `1=1` 등 포함 |
+| XSS | path/body에 `<script`, `onerror=`, `javascript:`, `alert(` 등 포함 |
+| 스캔 | `/.env`, `/.git`, `/wp-login.php`, `/phpmyadmin` 등 경로 패턴 |
+| 브루트포스 | 같은 IP가 60초 이내 로그인 경로에 10회 이상 요청 |
+| 기타 | 위 어디도 해당 안 됨 |
 
-fun initDatabase(dbPath: String) {
-    Database.connect("jdbc:sqlite:$dbPath", "org.sqlite.JDBC")
-    transaction {
-        exec("PRAGMA journal_mode=WAL;")
-        SchemaUtils.createMissingTablesAndColumns(AttackLogs)
-    }
-}
-```
-
-DB 경로: 환경변수 `DB_PATH`로 받고 기본값은 `./data/honeypot.db`
-
----
-
-### STEP 2 — AttackClassifier.kt
-
-`attack_type`이 NULL인 행을 읽어 분류 후 UPDATE.
-
-**파일**: `api/src/main/kotlin/com/honeypot/AttackClassifier.kt`
-
-```
-분류 규칙:
-
-SQLi    — path 또는 body에 다음 포함:
-          SELECT, UNION, INSERT, DROP, --, ', 1=1, OR 1
-
-XSS     — path 또는 body에 다음 포함:
-          <script, onerror=, onload=, javascript:, alert(
-
-브루트포스 — 동일 IP가 60초 이내 /login, /admin 경로에 10회 이상 요청
-
-스캔    — path가 다음 중 하나:
-          /.env, /wp-login.php, /phpmyadmin, /admin,
-          /.git, /config, /backup, /shell, /.ssh
-
-기타    — 위 어디도 해당 안 됨
-```
-
-**실행 방식**: 코루틴으로 5초마다 반복
-
-```kotlin
-// Application.kt에서 launch
-launch {
-    while (true) {
-        AttackClassifier.classifyPending()
-        delay(5_000)
-    }
-}
-```
-
-분류 시 대소문자 무시 (`lowercase()` 후 비교).
-
----
-
-### STEP 3 — Routing.kt
-
-3개 엔드포인트 구현.
-
-**파일**: `api/src/main/kotlin/com/honeypot/Routing.kt`
+### API 응답 형식
 
 **GET /api/logs**
-```
-쿼리 파라미터:
-  limit  (기본 100, 최대 500)
-  offset (기본 0)
-  type   (선택, attack_type 필터)
-
-응답:
-  {
-    "total": 1234,
-    "logs": [
-      {
-        "id": 1,
-        "timestamp": "2024-01-01T12:00:00Z",
-        "ip": "1.2.3.4",
-        "method": "POST",
-        "path": "/login",
-        "userAgent": "sqlmap/1.7",
-        "body": "id=1'",
-        "attackType": "SQLi"
-      }, ...
-    ]
-  }
+```json
+{
+  "total": 1234,
+  "logs": [
+    {
+      "id": 1,
+      "timestamp": "2024-01-01T12:00:00Z",
+      "ip": "1.2.3.4",
+      "method": "POST",
+      "path": "/login",
+      "userAgent": "sqlmap/1.7",
+      "body": "id=1'",
+      "attackType": "SQLi"
+    }
+  ]
+}
 ```
 
 **GET /api/stats**
-```
-응답:
-  {
-    "total": 1234,
-    "byType": {
-      "SQLi": 400,
-      "XSS": 200,
-      "브루트포스": 150,
-      "스캔": 300,
-      "기타": 184
-    }
-  }
+```json
+{
+  "total": 1234,
+  "byType": { "SQLi": 400, "XSS": 200, "브루트포스": 150, "스캔": 300, "기타": 184 }
+}
 ```
 
 **GET /api/top-ips**
-```
-쿼리 파라미터:
-  limit (기본 10)
-
-응답:
-  [
-    { "ip": "1.2.3.4", "count": 300 },
-    { "ip": "5.6.7.8", "count": 150 },
-    ...
-  ]
+```json
+[
+  { "ip": "1.2.3.4", "count": 300 },
+  { "ip": "5.6.7.8", "count": 150 }
+]
 ```
 
----
+### ⚠️ Exposed 0.52.0 API 주의사항
 
-### STEP 4 — Plugin 설정 파일들
+구현 중 발견된 호환성 이슈. 아래 규칙을 반드시 따를 것.
 
-**Serialization.kt** — JSON 직렬화 설정
 ```kotlin
-install(ContentNegotiation) {
-    json(Json { ignoreUnknownKeys = true })
-}
-```
+// ❌ 구버전 API (0.52.0에서 제거됨)
+Table.select { condition }
+Table.slice(col1, col2).select { condition }
+query.limit(n).offset(m)          // offset()은 메서드가 아님
 
-**CORS.kt** — 대시보드(localhost:5173)에서 API 호출 허용
-```kotlin
-install(CORS) {
-    anyHost()  // 개발 환경
-    allowHeader(HttpHeaders.ContentType)
-}
-```
+// ✅ 올바른 API
+Table.selectAll().where { condition }
+Table.select(col1, col2).where { condition }
+query.limit(n, offset)            // limit() 두 번째 인자로 offset 전달
 
----
+// ✅ transaction 반환 타입은 명시
+val result: Pair<Int, List<LogEntry>> = transaction { ... }
+```
 
 ### Phase 1 체크리스트
 
-- [ ] `Database.kt` — 연결 + 테이블 정의
-- [ ] `AttackClassifier.kt` — 분류 로직 + 5초 주기 실행
-- [ ] `Routing.kt` — `/api/logs`, `/api/stats`, `/api/top-ips`
-- [ ] `Application.kt` — 플러그인 등록 + DB 초기화 + 분류기 시작
-- [ ] `./gradlew run`으로 로컬 실행 확인
+- [x] `Database.kt` — 연결 + 테이블 정의
+- [x] `AttackClassifier.kt` — 분류 로직 + 5초 주기 실행
+- [x] `Routing.kt` — `/api/logs`, `/api/stats`, `/api/top-ips`
+- [x] `Application.kt` — 플러그인 등록 + DB 초기화 + 분류기 시작
+- [ ] `./gradlew run`으로 로컬 실행 확인 (로컬 JDK 17+ 설치 필요)
 - [ ] curl로 각 엔드포인트 응답 확인
 
 ---
 
-## Phase 2 — React 대시보드 (`dashboard/`)
+## Phase 2 — React 대시보드 (`dashboard/`) ✅ 완료
 
-### STEP 1 — 프로젝트 구조 정리
+### 구현된 파일
 
 ```
 dashboard/src/
 ├── api/
-│   └── index.js          # API 호출 함수 모음
+│   └── index.js          ✅ fetchLogs, fetchStats, fetchTopIps
 ├── components/
-│   ├── LogTable.jsx       # 로그 테이블
-│   ├── StatsChart.jsx     # 공격 유형 파이차트
-│   ├── TopIps.jsx         # 상위 IP 목록
-│   └── StatCard.jsx       # 숫자 요약 카드
-└── App.jsx
+│   ├── StatCard.jsx       ✅ 공격 유형별 숫자 카드
+│   ├── StatsChart.jsx     ✅ 파이차트 (recharts)
+│   ├── TopIps.jsx         ✅ 상위 IP 바차트
+│   └── LogTable.jsx       ✅ 필터 + 페이지네이션 테이블
+└── App.jsx                ✅ 전체 조합, 10초 자동 갱신
 ```
-
-기존 Vite 기본 파일(`App.css`, `assets/` 등)은 정리해도 됨.
-
----
-
-### STEP 2 — api/index.js
-
-```js
-const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8081";
-
-export const fetchLogs   = (params) => axios.get(`${BASE}/api/logs`, { params });
-export const fetchStats  = ()       => axios.get(`${BASE}/api/stats`);
-export const fetchTopIps = (limit)  => axios.get(`${BASE}/api/top-ips`, { params: { limit } });
-```
-
-API URL은 `.env` 파일로 관리 (`VITE_API_URL=http://localhost:8081`).
-
----
-
-### STEP 3 — StatCard.jsx
-
-총 요청 수, 공격 유형별 건수를 숫자 카드로 표시.
-
-```
-[ 총 요청 1,234 ]  [ SQLi 400 ]  [ XSS 200 ]  [ 스캔 300 ]  [ 브루트포스 150 ]
-```
-
----
-
-### STEP 4 — StatsChart.jsx
-
-recharts `PieChart`로 공격 유형 비율 시각화.
-
-```jsx
-import { PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
-
-const COLORS = {
-  SQLi: "#ef4444",
-  XSS: "#f97316",
-  브루트포스: "#eab308",
-  스캔: "#3b82f6",
-  기타: "#6b7280",
-};
-```
-
----
-
-### STEP 5 — LogTable.jsx
-
-| 시각 | IP | 메서드 | 경로 | 공격 유형 | User-Agent |
-|---|---|---|---|---|---|
-
-기능:
-- 공격 유형별 필터 드롭다운
-- 페이지네이션 (limit/offset)
-- 공격 유형에 색상 배지
-
----
-
-### STEP 6 — TopIps.jsx
-
-상위 10개 IP와 요청 수를 `BarChart`로 표시.
-
----
-
-### STEP 7 — App.jsx 자동 갱신
-
-```jsx
-// 10초마다 전체 데이터 갱신
-useEffect(() => {
-  const load = () => { fetchStats(); fetchLogs(); fetchTopIps(); };
-  load();
-  const id = setInterval(load, 10_000);
-  return () => clearInterval(id);
-}, []);
-```
-
----
 
 ### Phase 2 체크리스트
 
-- [ ] `api/index.js` — 3개 함수 구현
-- [ ] `StatCard.jsx` — 요약 숫자 카드
-- [ ] `StatsChart.jsx` — 파이차트
-- [ ] `LogTable.jsx` — 필터 + 페이지네이션 테이블
-- [ ] `TopIps.jsx` — 바차트
-- [ ] `App.jsx` — 조합 + 10초 자동 갱신
-- [ ] `npm run dev`로 로컬 확인
+- [x] `api/index.js` — 3개 함수 구현
+- [x] `StatCard.jsx` — 요약 숫자 카드
+- [x] `StatsChart.jsx` — 파이차트
+- [x] `LogTable.jsx` — 필터 + 페이지네이션 테이블
+- [x] `TopIps.jsx` — 바차트
+- [x] `App.jsx` — 조합 + 10초 자동 갱신
+- [ ] 팀원 core/ 완성 후 실제 데이터로 UI 확인
 
 ---
 
-## 통합 순서 (전체 타임라인)
+## Docker 빌드 현황
+
+| 서비스 | Docker 빌드 | 비고 |
+|---|---|---|
+| `api` | ✅ 성공 | `gradle:8.8-jdk17` 이미지 사용 |
+| `dashboard` | ✅ 성공 | `node:20-alpine` 사용 (CustomEvent 지원) |
+| `core` | 팀원 코드 대기 중 | Dockerfile은 작성됨 |
+
+### ⚠️ Dockerfile 주의사항
+
+- `dashboard/Dockerfile`: `node:18-alpine` → `node:20-alpine` 필요 (Node 18 구버전에 `CustomEvent` 미지원)
+- `dashboard/Dockerfile`: `npm ci` 대신 `npm install` 사용 (lock file 버전 불일치 방지)
+- `api/Dockerfile`: `gradle --no-daemon installDist` 로 배포용 스크립트 생성
+
+---
+
+## 통합 순서
 
 ```
-[팀원] core/ 구현
-  └─ STEP 1~6 완료 → DB에 실제 데이터 INSERT 확인
-
-[나] api/ 구현 (Phase 1)
-  └─ 팀원 DB 스키마 확정 후 시작 가능
-  └─ 테스트용 더미 데이터로 먼저 개발 가능
-
-[나] dashboard/ 구현 (Phase 2)
-  └─ api/ /api/stats 응답만 있으면 시작 가능
+[팀원] core/ 구현 완료
+  └─ DB에 실제 데이터 INSERT 확인
 
 [합치기] docker-compose up --build
-  └─ 볼륨 경로(/data/honeypot.db) 맞추기
-  └─ CORS, 포트 확인
+  └─ 세 컨테이너 모두 정상 실행 확인
+  └─ http://localhost:3000 에서 대시보드 확인
 ```
 
 ---
