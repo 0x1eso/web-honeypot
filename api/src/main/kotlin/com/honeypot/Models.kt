@@ -31,3 +31,9 @@ data class IpCount(
     val ip: String,
     val count: Int
 )
+
+@Serializable
+data class HealthResponse(
+    val status: String,         // "ok" | "db_unreachable"
+    val db: String? = null      // 실패 시 짧은 사유
+)

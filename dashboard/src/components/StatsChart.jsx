@@ -1,4 +1,5 @@
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import "./StatsChart.css";
 
 const COLORS = {
   SQLi:       "#ef4444",
@@ -13,15 +14,15 @@ export default function StatsChart({ byType }) {
 
   if (data.length === 0) {
     return (
-      <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "center", color: "#666" }}>
+      <div className="chart-card chart-card--empty">
         데이터 없음
       </div>
     );
   }
 
   return (
-    <div style={cardStyle}>
-      <h3 style={titleStyle}>공격 유형 분포</h3>
+    <div className="chart-card">
+      <h3 className="chart-card__title">공격 유형 분포</h3>
       <ResponsiveContainer width="100%" height={260}>
         <PieChart>
           <Pie
@@ -48,19 +49,3 @@ export default function StatsChart({ byType }) {
     </div>
   );
 }
-
-const cardStyle = {
-  background: "#1e1e2e",
-  border: "1px solid #333",
-  borderRadius: 8,
-  padding: 20,
-  flex: 1,
-  minHeight: 320,
-};
-
-const titleStyle = {
-  margin: "0 0 12px",
-  fontSize: 14,
-  color: "#ccc",
-  fontWeight: 600,
-};

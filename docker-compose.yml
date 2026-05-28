@@ -2,35 +2,64 @@ services:
   core:
     build:
       context: ./core
+    # core는 honeypot 본 목적상 호스트에 노출 (격리된 사설 네트워크에서만 운영).
     ports:
       - "8080:8080"
     volumes:
       - db-data:/data
     restart: unless-stopped
+    healthcheck:
+      # debian:bookworm-slim runtime, bash + /dev/tcp 트릭으로 TCP 응답 확인
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/8080' || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
 
   api:
     build:
       context: ./api
-    ports:
-      - "8081:8081"
+    # api는 내부 네트워크에서만 접근. 대시보드가 nginx로 프록시한다.
+    # 디버깅 시 'ports: - "8081:8081"' 임시 추가 가능.
+    expose:
+      - "8081"
     volumes:
       - db-data:/data
     environment:
       DB_PATH: /data/honeypot.db
+      # 운영 origin으로 좁히려면 CSV로 override: ALLOWED_ORIGINS: "https://dashboard.example.com"
     depends_on:
-      - core
+      core:
+        condition: service_started
     restart: unless-stopped
+    healthcheck:
+      # eclipse-temurin:17-jre = ubuntu, bash + /dev/tcp 사용.
+      # /healthz HTTP 검증은 wget/curl 설치 시점에 격상 예정.
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/8081' || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
 
   dashboard:
     build:
       context: ./dashboard
       args:
         VITE_API_URL: /api
+    # nginxinc/nginx-unprivileged 는 8080 listen. 호스트 3000 -> 컨테이너 8080.
     ports:
-      - "3000:80"
+      - "3000:8080"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      # nginx-unprivileged:alpine = BusyBox wget 포함
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
 
 volumes:
   db-data:

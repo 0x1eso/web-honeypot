@@ -1,0 +1,22 @@
+.chart-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+  flex: 1;
+  min-height: 320px;
+}
+
+.chart-card--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-mute-3);
+}
+
+.chart-card__title {
+  margin: 0 0 var(--space-5);
+  font-size: var(--text-md);
+  color: var(--color-text-soft);
+  font-weight: 600;
+}

@@ -1,0 +1,82 @@
+/**
+ * Design tokens for the Web Honeypot dashboard.
+ *
+ * All colors, spacing, radii, and typography sizes used across the app
+ * should reference these custom properties instead of inlining values.
+ */
+
+:root {
+  /* -- Surfaces -- */
+  --color-app-bg:        #13131f;
+  --color-surface:       #1e1e2e;
+  --color-surface-alt:   #2a2a3e;
+  --color-border:        #333;
+  --color-border-subtle: #2a2a3e;
+  --color-border-strong: #444;
+
+  /* -- Text -- */
+  --color-text:          #e2e2e2;
+  --color-text-strong:   #fff;
+  --color-text-soft:     #ccc;
+  --color-text-muted:    #aaa;
+  --color-text-mute-2:   #888;
+  --color-text-mute-3:   #666;
+  --color-text-mute-4:   #555;
+
+  /* -- Accents (attack types) -- */
+  --color-sqli:          #ef4444;
+  --color-xss:           #f97316;
+  --color-brute:         #eab308;
+  --color-scan:          #3b82f6;
+  --color-other:         #6b7280;
+  --color-other-text:    #9ca3af;
+  --color-total:         #8b5cf6;
+  --color-total-soft:    #a78bfa;
+
+  /* -- Semantic -- */
+  --color-danger:        #ef4444;
+  --color-danger-bg:     #ef444422;
+  --color-danger-border: #ef4444;
+
+  /* Tinted backgrounds (matches the `<hex>22` pattern used inline) */
+  --color-sqli-bg:       #ef444422;
+  --color-xss-bg:        #f9731622;
+  --color-brute-bg:      #eab30822;
+  --color-scan-bg:       #3b82f622;
+  --color-other-bg:      #6b728022;
+  --color-total-bg:      #8b5cf622;
+
+  /* -- Spacing -- */
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 10px;
+  --space-5: 12px;
+  --space-6: 14px;
+  --space-7: 16px;
+  --space-8: 20px;
+  --space-9: 24px;
+  --space-10: 28px;
+
+  /* -- Radius -- */
+  --radius-sm:  4px;
+  --radius-md:  6px;
+  --radius-lg:  8px;
+  --radius-pill: 20px;
+
+  /* -- Typography -- */
+  --text-xs:   11px;
+  --text-sm:   12px;
+  --text-base: 13px;
+  --text-md:   14px;
+  --text-lg:   16px;
+  --text-xl:   20px;
+  --text-2xl:  28px;
+
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-sans: system-ui, sans-serif;
+
+  /* -- Motion -- */
+  --duration-fast: 150ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}

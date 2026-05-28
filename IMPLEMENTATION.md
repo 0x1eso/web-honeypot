@@ -2,10 +2,29 @@
 
 ---
 
-## 팀원 담당 — `core/` (C 모듈)
+## Phase 0 — `core/` (C 모듈) ✅ 완료
 
 ### 목표
 raw socket으로 HTTP 요청을 수신하고, 가짜 응답을 돌려주면서 SQLite에 로그를 기록한다.
+
+### 구현 결과 (Phase 1 작업)
+| 파일 | 역할 |
+|---|---|
+| `main.c` | 진입점, signal handler, logger 초기화 |
+| `server.c` | TCP socket + accept 루프 + 연결당 pthread |
+| `http_parser.c` | METHOD/PATH/User-Agent/body 추출 (`memmem`, `strncasecmp`) |
+| `logger.c` | prepared statement + mutex + WAL/busy_timeout PRAGMA |
+| `response.c` | `/admin`/`/login`/`/.env`/`/wp-login.php` 가짜 응답, 그 외 404 |
+| `honeypot.h` | `HttpRequest` 구조체 + DB_PATH/PORT/BUF_SIZE/BACKLOG 상수 |
+| `Makefile` | `-D_GNU_SOURCE -pthread -lsqlite3 -lpthread` |
+
+### 구현 시 적용된 정책
+- timestamp는 `gmtime_r` + `strftime("%Y-%m-%dT%H:%M:%SZ")` 로 ISO 8601 UTC 강제
+- HttpRequest 구조체 필드 고정 크기로 자동 cap (path 1024 / user_agent 512 / body 4096)
+- `recv` 5초 타임아웃으로 슬로우로리스 방지
+- `SIGPIPE` 무시 + `MSG_NOSIGNAL` send로 클라이언트 조기 종료에 견고
+- prepared statement는 1개 + mutex로 직렬화
+- response body는 모두 정적 문자열 → reflection XSS/명령 주입 표면 없음
 
 ---
 
@@ -142,13 +161,14 @@ int main() {
 
 ---
 
-### 팀원 체크리스트
+### Phase 0 체크리스트
 
-- [ ] `honeypot.h` 구조체/상수 확정 후 나한테 공유 (DB_PATH, timestamp 포맷)
-- [ ] `logger_init()` 호출 시 DB 파일 + 테이블 자동 생성
-- [ ] INSERT 시 `attack_type` 컬럼은 NULL
-- [ ] 멀티스레드 SQLite 접근 보호
-- [ ] Makefile에 `-lsqlite3 -lpthread` 링크 추가
+- [x] `honeypot.h` 구조체/상수 확정 (DB_PATH, PORT, BUF_SIZE, BACKLOG, HttpRequest)
+- [x] `logger_init()`이 DB 파일 + 테이블 자동 생성 (CREATE TABLE IF NOT EXISTS)
+- [x] INSERT 시 `attack_type` 컬럼은 NULL (Kotlin 분류기가 후속 UPDATE)
+- [x] 멀티스레드 SQLite 접근 보호 (prepared statement + pthread mutex)
+- [x] Makefile에 `-lsqlite3 -lpthread` 링크 추가, `-D_GNU_SOURCE`로 memmem 활성화
+- [x] `./honeypot` 호스트 빌드 검증 완료 (gcc 13, libsqlite3-dev)
 
 ---
 ---
@@ -283,7 +303,93 @@ dashboard/src/
 |---|---|---|
 | `api` | ✅ 성공 | `gradle:8.8-jdk17` 이미지 사용 |
 | `dashboard` | ✅ 성공 | `node:20-alpine` 사용 (CustomEvent 지원) |
-| `core` | 팀원 코드 대기 중 | Dockerfile은 작성됨 |
+| `core` | ✅ 성공 | `gcc:13` + libsqlite3-dev. 호스트 빌드 검증 완료 |
+
+### Phase 1 후속 수정 (2026-05-28)
+- `dashboard/src/api/index.js`: BASE를 "API root 전체"(/api 포함)로 통일.
+  Docker `VITE_API_URL=/api` + 호출 `${BASE}/logs` → 최종 `/api/logs`.
+  이전 코드는 `${BASE}/api/logs` 형태라 Docker 배포 시 `/api/api/logs` 이중 prefix 404가 발생했음.
+
+---
+
+## XSS 표시 정책 (Phase 4)
+
+허니팟 로그는 **공격자가 자유롭게 페이로드를 주입하는 입력**이다. 대시보드가 이를 렌더링할 때 다음 룰을 강제한다.
+
+| 위치 | 룰 |
+|---|---|
+| React JSX 보간 (`{log.path}`) | OK — React가 기본 escape |
+| `dangerouslySetInnerHTML` | **금지** (코드 review 차단) |
+| recharts `Tooltip` / `LabelList` custom render | 반환값은 **문자열만**. `<div>` 등 JSX 반환 시 escape 보장 안 됨 |
+| URL/CSV/JSON export | 텍스트 escape 필수. CSV는 `,` `"` `\n` 이스케이프 + `=`/`@`/`+`/`-` prefix 차단 (수식 주입) |
+| 클립보드 복사 | DOM 텍스트만 복사. innerHTML 금지 |
+
+CSP가 `script-src 'self'` 만 허용하므로 인라인 스크립트는 브라우저 차단되지만, 위 룰은 **defense-in-depth**로 유지한다.
+
+---
+
+## Phase 2~4 변경 메모 (2026-05-28)
+
+### Phase 2 (API 정합성 & 관측성)
+- classifier 코루틴: SupervisorJob + Dispatchers.IO + ApplicationStopping cancel
+- 모든 핸들러 `newSuspendedTransaction(Dispatchers.IO)` 격리
+- `/healthz` 추가, Docker healthcheck 3종
+- offset 음수 clamp, count/list Query 객체 분리
+- logback ISO 8601 + 분류기 logger
+
+### Phase 3 (DB 성능 & 동시성)
+- 인덱스 3개: `idx_logs_attack_type`, `idx_logs_ip_timestamp`, `idx_logs_timestamp`
+- SQLite PRAGMA via setupConnection (`busy_timeout=5000`)
+- brute force 4 sumOf 쿼리 → 단일 OR 쿼리 (중복 카운트 제거)
+- CHECK 제약 (path 1024 / body 4096 / 등) 3-way 일치 (`schema.sql` / `core/logger.c` / `api/Database.kt`)
+
+### Phase 4 (보안 보강)
+- CORS `anyHost()` → `ALLOWED_ORIGINS` env 화이트리스트
+- nginx 보안 헤더 5종 (X-Content-Type-Options / X-Frame-Options / Referrer-Policy / Permissions-Policy / CSP)
+- Dockerfile 3개 모두 non-root + 멀티스테이지 (core: `debian:bookworm-slim`, api: `app` user, dashboard: `nginxinc/nginx-unprivileged:alpine` 8080)
+- compose: api 호스트 publish 제거 (`expose`만), dashboard `3000:8080` 매핑
+- README 상단 위협 모델 박스
+
+### Phase 5 (테스트 & 마무리)
+
+#### 5.1 Ktor 통합 + AttackClassifier 단위 테스트
+- `api/build.gradle.kts` 테스트 deps 추가 (JUnit 5, ktor-server-test-host, kotlinx-coroutines-test). JUnit 4 브리지(`kotlin-test-junit`) 제거 — JUnit 5와 충돌 회피.
+- `api/src/test/kotlin/com/honeypot/TestSupport.kt`: `withTestDb` (temp 파일 DB) + `seedLog` + `withTestApp` (production plugin 순서 미러링, classifier loop 제외).
+- `api/src/test/kotlin/com/honeypot/RoutingTest.kt`: 7 케이스 (`/healthz` DB ping, `/api/logs` 목록·필터·페이지네이션·offset 음수 클램프, `/api/stats` byType, `/api/top-ips` 정렬).
+- `api/src/test/kotlin/com/honeypot/AttackClassifierTest.kt`: 5 케이스 (SQLi / XSS / 스캔 / 브루트포스 / 기타 fallback).
+- 발견된 production 제약 (테스트가 코드에 맞춰 작성됨):
+  - `/api/logs` 필터 파라미터는 `type` (코드의 실제 query key)
+  - 레이블은 한국어 (`SQLi` / `XSS` / `스캔` / `브루트포스` / `기타`)
+  - `/api/stats`의 `byType`은 attack_type NULL 행을 제외 (`total`만 포함)
+
+#### 5.2 dashboard Playwright `/api/api/` 회귀 차단
+- `dashboard/package.json` `@playwright/test ^1.48.0` + `test:e2e` / `test:e2e:install` 스크립트.
+- `dashboard/playwright.config.js` (ESM) — chromium 단일, `webServer: npm run dev` 자동 기동, `reuseExistingServer: !CI`.
+- `dashboard/tests/e2e/dashboard.spec.js`:
+  - A: `page.route('**/*')` 로 `/api` 요청 모킹 (오프라인 테스트). 모든 요청 URL 캡처 → `/api/`에 매치는 1개 이상 + `/api/api/` 포함은 0개 (회귀 차단).
+  - B: pageerror 0건 + body 가시성 검증.
+- 모킹 shape: `stats={total:0, byType:{}}`, `top-ips=[]`, `logs={total:0, logs:[]}` (App.jsx의 destructuring 경로에 맞춤).
+- `.gitignore` Playwright artifact 3 줄 추가.
+
+#### 5.3 PAGE_SIZE 단일화 (M4)
+- 기존: `App.jsx:9` 와 `LogTable.jsx:12` 양쪽에 `PAGE_SIZE=20` 중복.
+- 변경: `App.jsx` 모듈 상수로 단일화, `<LogTable pageSize={PAGE_SIZE} />` prop 전달. LogTable 내부 중복 정의 제거.
+
+#### 5.4 인라인 style → tokens.css (M10)
+- `dashboard/src/styles/tokens.css` 신설: color (semantic + attack-type 별 surface/border), space-1~10, radius, text size, duration/ease.
+- `main.jsx`에서 tokens.css를 index.css 보다 먼저 import.
+- 컴포넌트별 co-located CSS (`StatCard.css` / `StatsChart.css` / `TopIps.css` / `LogTable.css`) 신설. 인라인 `style={{}}` 28건 제거.
+- 제외: recharts API 값 (`COLORS`, `Cell fill`, `contentStyle`) 은 DOM style 이 아니라 라이브러리 API 이므로 유지.
+- 유지: `StatCard.jsx` 의 동적 색상 CSS variable 1건 (`style={{ '--accent': color }}`) — 의도적 잔류.
+- `npm run build` 성공 (259ms, CSS 7.21 KB, JS 596 KB — recharts 번들 경고는 사전 존재 이슈).
+
+#### 5.5 메타 파일 (L2-L4)
+- `.env.example`: `DB_PATH`, `ALLOWED_ORIGINS`, `VITE_API_URL` 가이드.
+- `LICENSE`: MIT + 운영 책임 면책 NOTE (README 위협 모델과 일치).
+- `data/.gitkeep`: 마운트 디렉터리 git 추적 유지 (`.gitignore` 의 `!data/.gitkeep` 와 짝).
+
+#### 5.6 brute force 정책 명문화 (M11)
+- `AttackClassifier.kt` 클래스 KDoc: 레이블 집합, 매칭 우선순위, 60초 슬라이딩 윈도우 + 임계 10회 정책, 인덱스 의존성, false positive 의도, 레이블 변경 시 UI 동기화 필요성 명시.
 
 ### ⚠️ Dockerfile 주의사항
 

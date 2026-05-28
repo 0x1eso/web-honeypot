@@ -4,6 +4,7 @@ import StatCard   from "./components/StatCard";
 import StatsChart from "./components/StatsChart";
 import TopIps     from "./components/TopIps";
 import LogTable   from "./components/LogTable";
+import "./App.css";
 
 const REFRESH_MS = 10_000;
 const PAGE_SIZE  = 20;
@@ -49,28 +50,26 @@ export default function App() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#13131f", color: "#e2e2e2", fontFamily: "system-ui, sans-serif" }}>
-      <header style={{ borderBottom: "1px solid #2a2a3e", padding: "16px 28px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <div className="app-shell">
+      <header className="app-header">
         <div>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#fff" }}>
-            Web Honeypot
-          </h1>
-          <p style={{ margin: 0, fontSize: 12, color: "#666" }}>공격 트래픽 모니터링 대시보드</p>
+          <h1 className="app-title">Web Honeypot</h1>
+          <p className="app-subtitle">공격 트래픽 모니터링 대시보드</p>
         </div>
-        <div style={{ fontSize: 12, color: "#555" }}>
+        <div className="app-updated">
           {lastAt ? `마지막 갱신: ${lastAt}` : "로딩 중..."}
         </div>
       </header>
 
-      <main style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 20 }}>
+      <main className="app-main">
         {error && (
-          <div style={{ background: "#ef444422", border: "1px solid #ef4444", borderRadius: 8, padding: "12px 16px", color: "#ef4444", fontSize: 13 }}>
+          <div className="app-error">
             {error}
           </div>
         )}
 
         {/* 요약 카드 */}
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <div className="app-stat-row">
           <StatCard label="전체"       value={stats?.total} />
           <StatCard label="SQLi"       value={stats?.byType?.["SQLi"]} />
           <StatCard label="XSS"        value={stats?.byType?.["XSS"]} />
@@ -80,7 +79,7 @@ export default function App() {
         </div>
 
         {/* 차트 */}
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <div className="app-chart-row">
           <StatsChart byType={stats?.byType} />
           <TopIps     data={topIps} />
         </div>
@@ -89,6 +88,7 @@ export default function App() {
         <LogTable
           logs={logsRes.logs}
           total={logsRes.total}
+          pageSize={PAGE_SIZE}
           onFilterChange={handleFilterChange}
         />
       </main>

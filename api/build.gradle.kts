@@ -35,7 +35,20 @@ dependencies {
     // Logging
     implementation("ch.qos.logback:logback-classic:1.5.6")
 
-    // Testing
+    // Testing (base entries kept for backward compat; junit5 entries below take precedence)
     testImplementation("io.ktor:ktor-server-test-host-jvm")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
+
+    // Extended test dependencies (JUnit 5)
+    testImplementation("io.ktor:ktor-server-test-host-jvm:2.3.12")
+    testImplementation("io.ktor:ktor-client-content-negotiation:2.3.12")
+    testImplementation("io.ktor:ktor-serialization-kotlinx-json:2.3.12")
+    testImplementation("org.jetbrains.kotlin:kotlin-test")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.2")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
