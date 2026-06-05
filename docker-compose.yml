@@ -1,60 +1,92 @@
 services:
+  # ===========================================================================
+  # core: C raw-socket honeypot 서버.
+  #   포트 8080 은 호스트로 publish — honeypot 본 목적상 외부 트래픽을 받아야 함.
+  #   격리된 사설 네트워크 / VLAN 에서만 운영 (README 위협 모델 참조).
+  #   /data 볼륨은 api 와 공유 — 같은 SQLite 파일을 양쪽이 읽고 쓰기 위해.
+  #   (core: INSERT raw row, api: UPDATE attack_type — db/schema.sql 의 2-phase 패턴.)
+  # ===========================================================================
   core:
     build:
       context: ./core
-    # core는 honeypot 본 목적상 호스트에 노출 (격리된 사설 네트워크에서만 운영).
     ports:
       - "8080:8080"
     volumes:
+      # named volume 공유 — bind mount 가 아닌 이유: docker 가 첫 마운트 시
+      # 컨테이너 안 /data 의 ownership(honeypot:honeypot) 을 자동 복사해 줘서
+      # 호스트 uid 충돌을 피할 수 있다.
       - db-data:/data
     restart: unless-stopped
     healthcheck:
-      # debian:bookworm-slim runtime, bash + /dev/tcp 트릭으로 TCP 응답 확인
+      # core 이미지는 debian:bookworm-slim → bash 포함 → /dev/tcp 의사파일 트릭 사용 가능.
+      # curl/wget 을 안 깐 이유: raw-socket 서버라 HTTP healthcheck 자체가 의미 없고,
+      # "TCP listen 상태인가" 만 확인하면 충분. 이미지 크기도 줄어듦.
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/8080' || exit 1"]
       interval: 30s
       timeout: 3s
       retries: 3
+      # start_period 5s: core 는 정적 바이너리라 부팅 거의 즉시. 짧아도 안전.
       start_period: 5s
 
+  # ===========================================================================
+  # api: Kotlin/Ktor 분류 + 조회 API.
+  #   외부 publish 하지 않음 — dashboard 의 nginx 가 /api/* 를 프록시한다 (nginx.conf).
+  #   expose 만 한 이유: 같은 compose 네트워크 안의 컨테이너만 8081 에 닿게 하는 정책.
+  #   디버깅이 필요하면 임시로 'ports: - "8081:8081"' 추가 가능.
+  # ===========================================================================
   api:
     build:
       context: ./api
-    # api는 내부 네트워크에서만 접근. 대시보드가 nginx로 프록시한다.
-    # 디버깅 시 'ports: - "8081:8081"' 임시 추가 가능.
     expose:
       - "8081"
     volumes:
+      # core 와 동일한 named volume 마운트 → 같은 honeypot.db 파일을 양쪽에서 열람.
+      # SQLite WAL 모드(schema.sql) 라 동시 read/write 안전.
       - db-data:/data
     environment:
       DB_PATH: /data/honeypot.db
-      # 운영 origin으로 좁히려면 CSV로 override: ALLOWED_ORIGINS: "https://dashboard.example.com"
+      # 운영 origin 으로 좁히려면 CSV 로 override: ALLOWED_ORIGINS: "https://dashboard.example.com"
     depends_on:
       core:
+        # service_started 만 보장 (service_healthy 가 아님): api 는 core 의 listen 여부에
+        # 의존하지 않고, DB 파일만 공유하면 됨. core healthcheck 완료를 기다리지 않아 부팅 단축.
         condition: service_started
     restart: unless-stopped
     healthcheck:
-      # eclipse-temurin:17-jre = ubuntu, bash + /dev/tcp 사용.
-      # /healthz HTTP 검증은 wget/curl 설치 시점에 격상 예정.
+      # eclipse-temurin:17-jre 도 ubuntu 베이스라 bash + /dev/tcp 사용 가능.
+      # 더 엄격한 검증은 wget/curl 설치 후 /healthz HTTP 200 확인으로 격상 예정 (Routing.kt 참조).
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/8081' || exit 1"]
       interval: 30s
       timeout: 3s
       retries: 5
+      # start_period 20s: JVM 부팅 + Exposed/HikariCP 초기화 시간 고려.
+      # 이 구간 동안 실패는 unhealthy 로 카운트되지 않아 false alarm 방지.
       start_period: 20s
 
+  # ===========================================================================
+  # dashboard: React SPA + nginx 리버스 프록시.
+  #   호스트 3000 → 컨테이너 8080 (nginxinc/nginx-unprivileged 는 non-root 라서
+  #   < 1024 포트 바인딩 불가 → 기본 8080 listen).
+  #   api 컨테이너의 /api/* 를 nginx 가 프록시 → SPA 는 same-origin 으로 호출 → CORS 우회.
+  # ===========================================================================
   dashboard:
     build:
       context: ./dashboard
       args:
+        # 빌드 타임에 Vite 에 inject — bundle 안에 /api 가 박혀 들어감.
+        # 런타임 환경변수가 아니라 build-arg 인 이유: Vite 는 빌드 시점에 정적 치환하기 때문.
         VITE_API_URL: /api
-    # nginxinc/nginx-unprivileged 는 8080 listen. 호스트 3000 -> 컨테이너 8080.
     ports:
       - "3000:8080"
     depends_on:
       api:
+        # service_healthy 까지 대기: nginx 가 부팅 직후 /api 프록시 요청을 받으면
+        # api 가 아직 listen 전이라 502 Bad Gateway 가 사용자에게 노출되는 걸 방지.
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      # nginx-unprivileged:alpine = BusyBox wget 포함
+      # nginx-unprivileged:alpine 은 BusyBox wget 포함 → curl 추가 설치 불필요.
+      # / 요청으로 index.html 200 응답까지 확인 (TCP listen + 정적 파일 서빙 동작 검증).
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1"]
       interval: 30s
       timeout: 3s
@@ -62,4 +94,6 @@ services:
       start_period: 5s
 
 volumes:
+  # db-data: core <-> api 가 SQLite 파일을 공유하는 단일 채널.
+  # 이 볼륨이 사라지면 모든 공격 로그 history 가 삭제됨 → 운영 시 백업 대상.
   db-data:

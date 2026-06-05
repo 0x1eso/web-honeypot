@@ -1,3 +1,7 @@
+/*
+ * TopIps.jsx (recharts BarChart) 컨테이너 카드 스타일.
+ * StatsChart.css 와 거의 동일 — 차트 카드 비주얼을 통일. 사용 변수도 동일.
+ */
 .topips-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);

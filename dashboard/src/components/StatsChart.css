@@ -1,3 +1,8 @@
+/*
+ * StatsChart.jsx (recharts PieChart) 컨테이너 카드 스타일.
+ * recharts SVG 자체 색은 컴포넌트에서 직접 지정 — 여기선 외곽 카드만 담당.
+ * 사용 변수: --color-surface, --color-border, --radius-lg, --space-*, --text-md.
+ */
 .chart-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);

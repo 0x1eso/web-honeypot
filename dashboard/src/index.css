@@ -1,3 +1,10 @@
+/*
+ * 전역 리셋 + body 베이스 + 다크 스크롤바 스타일.
+ * tokens.css 가 먼저 로드되므로 여기선 var(--color-*) 만 참조하면 된다.
+ */
+
+/* CSS 리셋 — 모든 요소에 box-sizing: border-box 와 margin/padding 0.
+   border-box 는 padding/border 가 width 안에 포함돼 레이아웃 계산이 직관적. */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -9,6 +16,8 @@ body {
   color: var(--color-text);
 }
 
+/* WebKit/Chromium 전용 다크 스크롤바. Firefox 는 scrollbar-color 가 별도지만
+   현재 디자인 우선순위가 낮아 추가하지 않음. */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;

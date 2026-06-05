@@ -1,3 +1,9 @@
+/*
+ * App.jsx 의 레이아웃 셸 스타일.
+ * 사용 변수: --color-app-bg, --color-surface-alt, --color-danger*, --space-*, --text-*.
+ * 구조: .app-shell > (.app-header + .app-main)
+ *       .app-main 은 세로 flex 로 stat-row / chart-row / 로그 테이블을 쌓는다.
+ */
 .app-shell {
   min-height: 100vh;
   background: var(--color-app-bg);
@@ -47,12 +53,14 @@
   font-size: var(--text-base);
 }
 
+/* 상단 StatCard 6개를 가로로 깔되 좁은 화면에서는 wrap. 각 카드는 flex:1 로 등분. */
 .app-stat-row {
   display: flex;
   gap: var(--space-5);
   flex-wrap: wrap;
 }
 
+/* StatsChart + TopIps 두 카드. wrap 되면 모바일에서 세로 스택. */
 .app-chart-row {
   display: flex;
   gap: var(--space-7);

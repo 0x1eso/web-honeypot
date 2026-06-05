@@ -1,3 +1,11 @@
+/*
+ * LogTable.jsx 의 모든 스타일.
+ * 핵심 패턴: 활성 필터 / method / attack 칩의 색은 모두 data-* attribute selector 로 분기.
+ *   .logtable-filter[data-active="true"][data-type="SQLi"] { ... }
+ * 덕분에 React 가 클래스 매핑 테이블을 들고 있을 필요가 없다.
+ * 사용 변수: --color-surface*, --color-border*, --color-{sqli,xss,brute,scan,other,total}*,
+ *           --color-danger*, --radius-*, --space-*, --text-*, --font-mono.
+ */
 .logtable-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -35,7 +43,8 @@
   font-weight: 400;
 }
 
-/* Active state per filter type — driven by data attributes */
+/* 활성 상태(공격 유형별) — data-active="true" 와 data-type 조합으로 색상 결정.
+   기본(전체)은 보라 --color-total, 그 외 타입은 각자의 액센트로 덮어쓴다. */
 .logtable-filter[data-active="true"] {
   font-weight: 600;
   background: var(--color-total-bg);
@@ -119,7 +128,7 @@
   white-space: nowrap;
 }
 
-/* Method pill */
+/* HTTP 메서드 칩. 기본은 파랑(GET 등 안전한 동사), POST 만 빨강으로 강조 — 상태 변경 위험 시그널. */
 .method-pill {
   padding: 2px var(--space-2);
   border-radius: var(--radius-sm);
@@ -133,7 +142,7 @@
   color: var(--color-danger);
 }
 
-/* Attack-type pill */
+/* 공격 유형 칩. data-type 별로 같은 컬러 시스템(--color-*) 재사용 — StatCard/StatsChart 와 일관. */
 .attack-pill {
   padding: 2px var(--space-3);
   border-radius: var(--radius-pill);
@@ -152,7 +161,7 @@
   color: var(--color-text-mute-4);
 }
 
-/* Pagination */
+/* 페이지네이션 — totalPages > 1 일 때만 LogTable.jsx 에서 렌더. */
 .logtable-pager {
   display: flex;
   gap: var(--space-2);

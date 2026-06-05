@@ -56,6 +56,14 @@ object AttackClassifier {
     // (Phase 3에서 더 엄격한 페이지네이션 커서로 다듬을 예정)
     private const val BATCH_LIMIT = 500
 
+    /**
+     * 미분류 행 한 배치를 분류해 attack_type 컬럼을 갱신한다.
+     *
+     * Application.kt 의 5초 주기 루프에서 호출된다. 한 번에 BATCH_LIMIT 까지만 처리해
+     * 트랜잭션 시간이 길어져 core 의 INSERT 가 busy_timeout 안에서 굶지 않게 한다.
+     * SELECT + UPDATE 를 같은 `newSuspendedTransaction` 안에서 실행해 분류 결과를
+     * 원자적으로 커밋하고, 분류 도중 새로 들어온 행은 다음 사이클에서 처리한다.
+     */
     suspend fun classifyPending() {
         newSuspendedTransaction(Dispatchers.IO) {
             val pending = AttackLogs
@@ -93,6 +101,7 @@ object AttackClassifier {
         val timestamp: String,
     )
 
+    /** path/body 를 lowercase 후 우선순위(SQLi → XSS → 스캔 → 브루트포스 → 기타) 로 첫 매치 라벨을 반환한다. */
     private fun classify(ip: String, path: String, body: String, timestamp: String): String {
         val pathLower = path.lowercase()
         val bodyLower = body.lowercase()

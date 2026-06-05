@@ -1,18 +1,26 @@
 <configuration>
+    <!--
+      STDOUT 콘솔 appender: docker logs / journalctl 가 그대로 캡처할 수 있도록 stdout 만 사용.
+      파일 appender 를 따로 두지 않는 이유는 컨테이너 환경의 로그 수집 파이프라인과 충돌하지 않게 하기 위함.
+    -->
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <!-- ISO 8601 UTC timestamp: core 모듈과 같은 시간 포맷 -->
+            <!-- ISO 8601 UTC timestamp: core 모듈(C) 의 로그 포맷과 정확히 같은 모양이라 grep / 시계열 정렬이 모듈 경계 없이 가능. -->
             <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX, UTC} %-5level [%thread] %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
 
+    <!-- 루트는 INFO. 디버그 잡음은 모듈별 logger 로 따로 켠다. -->
     <root level="INFO">
         <appender-ref ref="STDOUT"/>
     </root>
 
+    <!-- Exposed 가 INFO 에서 트랜잭션 시작/커밋을 시끄럽게 찍어 대시보드 read 트래픽을 묻어버리므로 WARN 으로 끌어올린다. -->
     <logger name="org.jetbrains.exposed" level="WARN"/>
+    <!-- Ktor 핸들러 진입/응답 등 운영 관측에 의미 있는 줄만 보이도록 INFO. DEBUG 로 내리면 매 요청마다 noise 가 심함. -->
     <logger name="io.ktor" level="INFO"/>
-    <!-- 분류기 백그라운드 잡 전용 로거 -->
+    <!-- 분류기 백그라운드 잡 라이프사이클(start/exit/cancel) 전용. 사고 시 이 한 줄만 추적해도 루프 상태 파악 가능. -->
     <logger name="com.honeypot.AttackClassifierLoop" level="INFO"/>
+    <!-- 분류 사이클 자체 로그. INFO 면 사이클당 거의 무음, 트러블슈팅 시 DEBUG 로 일시 상향. -->
     <logger name="com.honeypot.AttackClassifier" level="INFO"/>
 </configuration>

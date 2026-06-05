@@ -1,44 +1,52 @@
 /**
- * Design tokens for the Web Honeypot dashboard.
+ * Web Honeypot 대시보드의 디자인 토큰.
  *
- * All colors, spacing, radii, and typography sizes used across the app
- * should reference these custom properties instead of inlining values.
+ * 모든 색상/간격/반경/타이포 크기는 inline 값 대신 이 변수들을 참조한다.
+ * 토큰을 한 곳에 모아두면 테마 변경(예: 라이트모드)이나 액센트 색 교체가
+ * 컴포넌트 하나하나를 고치지 않고 :root 만 손대도 끝난다.
+ *
+ * 사용 예:
+ *   .stat-card        { background: var(--color-surface); }
+ *   .attack-pill[data-type="SQLi"] { color: var(--color-sqli); }
  */
 
 :root {
-  /* -- Surfaces -- */
-  --color-app-bg:        #13131f;
-  --color-surface:       #1e1e2e;
-  --color-surface-alt:   #2a2a3e;
-  --color-border:        #333;
-  --color-border-subtle: #2a2a3e;
-  --color-border-strong: #444;
+  /* === Surfaces — 앱 배경/카드/구분선 계열 ============================ */
+  --color-app-bg:        #13131f;  /* body 최하단 배경 */
+  --color-surface:       #1e1e2e;  /* 카드/툴팁 배경 */
+  --color-surface-alt:   #2a2a3e;  /* 필터 버튼 비활성 배경 등 한 단계 밝은 면 */
+  --color-border:        #333;     /* 카드 기본 테두리 */
+  --color-border-subtle: #2a2a3e;  /* 테이블 행 구분선처럼 거의 안 보일 정도 */
+  --color-border-strong: #444;     /* 페이저 버튼 등 또렷한 테두리 */
 
-  /* -- Text -- */
-  --color-text:          #e2e2e2;
-  --color-text-strong:   #fff;
-  --color-text-soft:     #ccc;
-  --color-text-muted:    #aaa;
-  --color-text-mute-2:   #888;
-  --color-text-mute-3:   #666;
-  --color-text-mute-4:   #555;
+  /* === Text — 강조도별 그레이 스케일 (낮은 숫자 = 더 흐림) ============ */
+  --color-text:          #e2e2e2;  /* 본문 기본 */
+  --color-text-strong:   #fff;     /* 제목/숫자 강조 */
+  --color-text-soft:     #ccc;     /* 표 셀, 부드러운 본문 */
+  --color-text-muted:    #aaa;     /* 카드 라벨 */
+  --color-text-mute-2:   #888;     /* X 축 tick */
+  --color-text-mute-3:   #666;     /* 부제목, "empty" 메시지 */
+  --color-text-mute-4:   #555;     /* 분류 중... 같은 가장 흐린 정보 */
 
-  /* -- Accents (attack types) -- */
-  --color-sqli:          #ef4444;
-  --color-xss:           #f97316;
-  --color-brute:         #eab308;
-  --color-scan:          #3b82f6;
-  --color-other:         #6b7280;
-  --color-other-text:    #9ca3af;
-  --color-total:         #8b5cf6;
-  --color-total-soft:    #a78bfa;
+  /* === Accents — 공격 유형별 시그니처 색 =============================
+     StatsChart / TopIps 의 recharts hex 값과 1:1 동기화 필수.
+     hex 뒤 "22" 는 알파 0x22 (≈13%) — 같은 색의 옅은 배경 톤. */
+  --color-sqli:          #ef4444;  /* 빨강: SQL 인젝션 (최고 위험) */
+  --color-xss:           #f97316;  /* 주황: XSS */
+  --color-brute:         #eab308;  /* 노랑: 브루트포스 */
+  --color-scan:          #3b82f6;  /* 파랑: 스캔 (정찰성) */
+  --color-other:         #6b7280;  /* 회색: 기타/미분류 */
+  --color-other-text:    #9ca3af;  /* 기타 칩의 텍스트는 살짝 더 밝게 */
+  --color-total:         #8b5cf6;  /* 보라: "전체" 폴백 색 (StatCard 기본) */
+  --color-total-soft:    #a78bfa;  /* 활성 필터 텍스트 */
 
-  /* -- Semantic -- */
+  /* === Semantic — 의미 기반 별칭 (역할이 바뀔 때만 갱신) ============== */
   --color-danger:        #ef4444;
   --color-danger-bg:     #ef444422;
   --color-danger-border: #ef4444;
 
-  /* Tinted backgrounds (matches the `<hex>22` pattern used inline) */
+  /* 칩/필터 배경용 옅은 톤. attack-pill, method-pill, logtable-filter 가 참조.
+     원본 hex 에 알파 0x22 를 붙인 형태로 통일 → 새 유형 추가 시 같은 패턴. */
   --color-sqli-bg:       #ef444422;
   --color-xss-bg:        #f9731622;
   --color-brute-bg:      #eab30822;
@@ -46,7 +54,7 @@
   --color-other-bg:      #6b728022;
   --color-total-bg:      #8b5cf622;
 
-  /* -- Spacing -- */
+  /* === Spacing — 4px 베이스 스케일. 임의의 수치는 쓰지 말 것. ========== */
   --space-1: 4px;
   --space-2: 6px;
   --space-3: 8px;
@@ -58,13 +66,13 @@
   --space-9: 24px;
   --space-10: 28px;
 
-  /* -- Radius -- */
-  --radius-sm:  4px;
-  --radius-md:  6px;
-  --radius-lg:  8px;
-  --radius-pill: 20px;
+  /* === Radius — 작은 칩부터 pill 까지 ================================ */
+  --radius-sm:  4px;   /* method 칩 */
+  --radius-md:  6px;   /* recharts 툴팁 */
+  --radius-lg:  8px;   /* 카드 */
+  --radius-pill: 20px; /* 필터 버튼, attack 칩 */
 
-  /* -- Typography -- */
+  /* === Typography — px 고정. 반응형 typography 가 필요해지면 clamp() 로 전환. */
   --text-xs:   11px;
   --text-sm:   12px;
   --text-base: 13px;
@@ -73,10 +81,12 @@
   --text-xl:   20px;
   --text-2xl:  28px;
 
+  /* IP, 경로 등 등폭이 가독성에 결정적인 곳은 font-mono. */
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --font-sans: system-ui, sans-serif;
 
-  /* -- Motion -- */
+  /* === Motion — 마이크로 인터랙션용. 현재 컴포넌트에서 직접 쓰진 않지만
+     hover/focus 전환을 추가할 때 일관성을 위해 미리 정의. */
   --duration-fast: 150ms;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }

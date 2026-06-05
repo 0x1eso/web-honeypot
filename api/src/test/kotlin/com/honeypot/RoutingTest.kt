@@ -19,6 +19,7 @@ class RoutingTest {
     // /healthz
     // -------------------------------------------------------------------------
 
+    /** 정상 경로에서 `/healthz` 가 200 + `status="ok"` + `db="ok"` 를 모두 채워 응답하는지 가드 (성공 응답에서도 db 필드 명시 전달 결정의 회귀 방지). */
     @Test
     fun `healthz returns ok with db ok`() = withTestDb { dbPath ->
         runTest {
@@ -38,6 +39,7 @@ class RoutingTest {
     // GET /api/logs
     // -------------------------------------------------------------------------
 
+    /** seedLog 로 넣은 행 수가 `total` 과 `logs.size` 양쪽에 그대로 반영되는지 확인 (기본 페이지네이션 경로). */
     @Test
     fun `logs list returns seeded rows`() = withTestDb { dbPath ->
         runTest {
@@ -54,6 +56,7 @@ class RoutingTest {
         }
     }
 
+    /** `?type=` 쿼리가 count 와 list 양쪽에 동일 WHERE 로 적용돼 total/페이지가 어긋나지 않는지 가드 (쿼리 파라미터 이름이 `attack_type` 이 아니라 `type` 이라는 점도 함께 잠금). */
     @Test
     fun `logs filter by attack_type via type param`() = withTestDb { dbPath ->
         // NOTE: Routing.kt uses query param "type", not "attack_type"
@@ -76,6 +79,7 @@ class RoutingTest {
         }
     }
 
+    /** limit/offset 으로 5건 중 슬라이스 2건만 돌려주면서 total 은 5 로 유지하는지 가드. */
     @Test
     fun `logs pagination returns correct slice`() = withTestDb { dbPath ->
         runTest {
@@ -92,6 +96,7 @@ class RoutingTest {
         }
     }
 
+    /** 음수 offset 이 와도 500 이 아니라 200 으로 첫 페이지를 돌려주는지 가드 (Routing.kt 의 coerceAtLeast(0L) 회귀 방지). */
     @Test
     fun `logs negative offset is clamped to zero`() = withTestDb { dbPath ->
         // Routing.kt: coerceAtLeast(0L) — negative offset treated as 0
@@ -113,6 +118,7 @@ class RoutingTest {
     // GET /api/stats
     // -------------------------------------------------------------------------
 
+    /** `/api/stats` 가 미분류 행을 `total` 엔 포함하되 `byType` 엔 제외하는지 가드 (`WHERE attack_type IS NOT NULL` 결정 잠금). */
     @Test
     fun `stats returns counts by attack_type excluding nulls`() = withTestDb { dbPath ->
         // Routing.kt: WHERE attack_type IS NOT NULL — null rows excluded from byType
@@ -144,6 +150,7 @@ class RoutingTest {
     // GET /api/top-ips
     // -------------------------------------------------------------------------
 
+    /** `/api/top-ips` 가 COUNT(id) DESC 정렬을 지켜 카운트 큰 IP 가 first() 로 오는지 가드. */
     @Test
     fun `top_ips returns ips sorted by count descending`() = withTestDb { dbPath ->
         runTest {

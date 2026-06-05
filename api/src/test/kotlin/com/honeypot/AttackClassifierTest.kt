@@ -25,6 +25,7 @@ class AttackClassifierTest {
     // SQLi
     // -------------------------------------------------------------------------
 
+    /** path 의 `union select` substring 이 SQLi 라벨을 우선순위 최상단에서 잡아내는지 가드 (sqliPatterns 매칭 회귀 방지). */
     @Test
     fun `sqli pattern via UNION SELECT in path is classified as SQLi`() = withTestDb { dbPath ->
         runTest {
@@ -48,6 +49,7 @@ class AttackClassifierTest {
     // XSS
     // -------------------------------------------------------------------------
 
+    /** body 의 `<script` 가 XSS 로 잡히는지 가드 — path 가 아닌 body 도 검사 대상이라는 결정(`"$pathLower $bodyLower"` 결합) 의 잠금. */
     @Test
     fun `xss pattern via script tag in body is classified as XSS`() = withTestDb { dbPath ->
         runTest {
@@ -71,6 +73,7 @@ class AttackClassifierTest {
     // Scan
     // -------------------------------------------------------------------------
 
+    /** `/.env` 같은 scanPaths 항목이 한국어 라벨 "스캔" 으로 분류되는지 가드 (라벨 문자열 변경 시 dashboard 표시도 같이 깨지므로 회귀 잠금). */
     @Test
     fun `scan pattern via dot-env path is classified as scan`() = withTestDb { dbPath ->
         runTest {
@@ -95,6 +98,7 @@ class AttackClassifierTest {
     // Brute force
     // -------------------------------------------------------------------------
 
+    /** 같은 IP 가 60초 윈도우 안에 로그인성 경로로 BRUTE_FORCE_THRESHOLD(=10) 회 이상 찍으면 "브루트포스" 로 분류되는지 가드 (단일 OR 쿼리로 row 중복 카운트 없이 임계치 도달 결정 잠금). */
     @Test
     fun `brute force pattern via repeated login requests is classified as brute force`() =
         withTestDb { dbPath ->
@@ -130,6 +134,7 @@ class AttackClassifierTest {
     // No match → fallback
     // -------------------------------------------------------------------------
 
+    /** 어느 패턴에도 안 걸리는 평범한 요청이 fallback "기타" 라벨로 떨어지는지 가드 (분류기가 NULL 을 남겨두지 않는다는 결정 잠금). */
     @Test
     fun `no pattern match results in fallback label 기타`() = withTestDb { dbPath ->
         runTest {
