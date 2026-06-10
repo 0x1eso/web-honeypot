@@ -1,0 +1,331 @@
+/* ============================================================================
+ * deck.css — 발표 덱 디자인 시스템.
+ *
+ * 톤은 과거 덱(eserlic.cloud/ppt)에서 추출한 라이트 에디토리얼:
+ *   bg #fbfbfd / ink #16161d / 인디고 액센트 #4f46e5 / 헤어라인 #e7e7ef
+ *   세리프 디스플레이 + 산세리프 본문 + 모노 캡션, gutter 80px,
+ *   cubic-bezier(.22,1,.36,1) 모션.
+ * 공격 유형 색은 dashboard tokens.css 와 동일 값으로 고정.
+ * ==========================================================================*/
+
+:root {
+  --bg: #fbfbfd;
+  --ink: #16161d;
+  --muted: #6b7280;
+  --accent: #4f46e5;
+  --accent-strong: #4338ca;
+  --accent-line: #c7cbf7;
+  --accent-weak: #eef0fd;
+  --accent-weaker: #f6f7fe;
+  --accent-glow: rgba(79, 70, 229, 0.16);
+  --line: #e7e7ef;
+  --line-soft: #f0f0f5;
+
+  /* 공격 유형 색 — dashboard/src/styles/tokens.css 와 동기 유지 */
+  --c-sqli: #ef4444;
+  --c-xss: #f97316;
+  --c-brute: #eab308;
+  --c-scan: #3b82f6;
+  --c-etc: #6b7280;
+
+  --serif: "Noto Serif CJK KR", "Noto Serif KR", Georgia, "Times New Roman", serif;
+  --sans: "Noto Sans CJK KR", "Noto Sans KR", system-ui, "Helvetica Neue", Arial, sans-serif;
+  --mono: "Noto Sans Mono CJK KR", ui-monospace, "SFMono-Regular", Consolas, monospace;
+
+  --dur: 0.42s;
+  --dur-slow: 0.7s;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: var(--sans);
+  color: var(--ink);
+  background: #ececf2;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ----------------------------------------------------------------------------
+ * 무대 — 1280×720 고정 좌표계를 transform scale 로 화면에 맞춘다.
+ * 슬라이드 내부는 px 로 절대 배치 → 어떤 해상도에서도 비율 유지(16:9).
+ * --------------------------------------------------------------------------*/
+.viewport {
+  position: fixed;
+  inset: 0;
+  user-select: none;
+}
+
+.stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1280px;
+  height: 720px;
+  background: var(--bg);
+  box-shadow: 0 24px 80px rgba(22, 22, 29, 0.12);
+  transform-origin: center;
+}
+
+/* ----------------------------------------------------------------------------
+ * 슬라이드 — 전부 DOM 에 쌓아두고 active 만 보인다 (인쇄 시 전체 노출).
+ * 전환: 크로스페이드 + 미세한 상승. visibility 를 지연시켜 클릭 통과 방지.
+ * --------------------------------------------------------------------------*/
+.slide {
+  position: absolute;
+  inset: 0;
+  padding: 60px 80px 64px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(14px);
+  transition:
+    opacity var(--dur) var(--ease),
+    transform var(--dur) var(--ease),
+    visibility 0s linear var(--dur);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.slide.active {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity var(--dur) var(--ease),
+    transform var(--dur) var(--ease);
+}
+
+/* 액센트 글로우 — 슬라이드 모서리의 옅은 인디고 분위기 */
+.glow {
+  position: absolute;
+  width: 560px;
+  height: 560px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--accent-glow), transparent 70%);
+  pointer-events: none;
+}
+.glow.tr { top: -200px; right: -160px; }
+.glow.bl { bottom: -240px; left: -200px; }
+
+/* ----------------------------------------------------------------------------
+ * 등장 모션 — slide 가 active 가 될 때만 .rv 가 순차 상승(stagger).
+ * 딜레이는 inline style 의 --d 로 슬라이드 쪽에서 지정.
+ * --------------------------------------------------------------------------*/
+.rv { opacity: 0; }
+.slide.active .rv {
+  animation: rise var(--dur-slow) var(--expo) both;
+  animation-delay: var(--d, 0s);
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ----------------------------------------------------------------------------
+ * 타이포그래피
+ * --------------------------------------------------------------------------*/
+.kicker {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.kicker::after {
+  content: "";
+  flex: 0 0 64px;
+  height: 1px;
+  background: var(--accent-line);
+}
+.kicker .no { color: var(--muted); }
+
+h1.display {
+  font-family: var(--serif);
+  font-size: 84px;
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+}
+
+h2.headline {
+  font-family: var(--serif);
+  font-size: 46px;
+  font-weight: 600;
+  line-height: 1.14;
+  letter-spacing: -0.01em;
+  margin-bottom: 34px;
+}
+
+.lead { font-size: 24px; line-height: 1.55; color: var(--ink); }
+.body { font-size: 19px; line-height: 1.62; }
+.dim  { color: var(--muted); }
+.mono { font-family: var(--mono); }
+.acc  { color: var(--accent); }
+
+/* ----------------------------------------------------------------------------
+ * 카드 / 표 / 칩
+ * --------------------------------------------------------------------------*/
+.card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 24px 26px;
+}
+.card.tint { background: var(--accent-weaker); border-color: var(--accent-line); }
+
+.cardTitle {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cardBody { font-size: 16.5px; line-height: 1.55; color: var(--muted); }
+.cardBody b { color: var(--ink); font-weight: 600; }
+
+.cols { display: flex; gap: 20px; }
+.cols > * { flex: 1; min-width: 0; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 17px;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  white-space: nowrap;
+}
+.chip .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+.tableRow {
+  display: grid;
+  grid-template-columns: 290px 1fr 290px;
+  align-items: baseline;
+  gap: 24px;
+  padding: 19px 6px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.tableRow:first-of-type { border-top: 1px solid var(--line); }
+.method {
+  font-family: var(--mono);
+  font-size: 19px;
+  font-weight: 600;
+}
+.method .verb { color: var(--accent); margin-right: 10px; font-size: 15px; }
+.tableDesc { font-size: 17.5px; color: var(--ink); }
+.tableShape { font-family: var(--mono); font-size: 15px; color: var(--muted); text-align: right; }
+
+code.inline {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  background: var(--accent-weak);
+  color: var(--accent-strong);
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+
+.footnote {
+  margin-top: auto;
+  padding-top: 18px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 15px;
+  color: var(--muted);
+  display: flex;
+  gap: 28px;
+  align-items: center;
+}
+
+.bignum {
+  font-family: var(--serif);
+  font-size: 110px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* SVG 다이어그램 — active 일 때만 흐름선이 흐른다 */
+.flow {
+  stroke-dasharray: 7 7;
+}
+.slide.active .flow { animation: dashmove 1.3s linear infinite; }
+@keyframes dashmove { to { stroke-dashoffset: -28; } }
+
+/* ----------------------------------------------------------------------------
+ * 오버레이 UI — 페이지 번호(우하단) + 진행 바(상단)
+ * --------------------------------------------------------------------------*/
+.pageNum {
+  position: fixed;
+  right: 26px;
+  bottom: 20px;
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--ink);
+  z-index: 10;
+}
+.pageNum span { color: var(--muted); }
+
+.progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: var(--accent);
+  transition: width var(--dur) var(--ease);
+  z-index: 10;
+}
+
+.hint {
+  position: fixed;
+  left: 26px;
+  bottom: 20px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--muted);
+  z-index: 10;
+}
+
+/* ----------------------------------------------------------------------------
+ * 인쇄 — 슬라이드당 정확히 한 페이지 (16:9, 1280×720px = 13.333×7.5in@96dpi).
+ * 화면용 스케일/스택/모션 전부 해제하고 전 슬라이드를 순서대로 출력.
+ * --------------------------------------------------------------------------*/
+@media print {
+  @page { size: 13.333in 7.5in; margin: 0; }
+
+  body { overflow: visible; background: #fff; }
+  .viewport { position: static; }
+  .stage {
+    position: static;
+    transform: none !important;
+    width: auto;
+    height: auto;
+    box-shadow: none;
+  }
+  .slide {
+    position: relative;
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: none !important;
+    /* 화면용 visibility 지연 transition 이 인쇄 평가에 끼어들지 않게 차단 */
+    transition: none !important;
+    width: 1280px;
+    height: 720px;
+    page-break-after: always;
+    break-after: page;
+  }
+  .rv { opacity: 1 !important; animation: none !important; transform: none !important; }
+  .flow { animation: none !important; }
+  .pageNum, .progress, .hint { display: none; }
+}
