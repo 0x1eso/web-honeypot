@@ -2,6 +2,9 @@
 api/.gradle/
 api/build/
 api/out/
+# Kotlin 2.x 가 만드는 세션 캐시. Docker 로 gradle 돌리면 root 소유로 생겨
+# git status 경고의 원인이 되기도 한다 (sudo chown 으로 정리).
+api/.kotlin/
 *.class
 *.jar
 

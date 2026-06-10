@@ -194,6 +194,104 @@ cd dashboard && npm run dev
 
 ---
 
+## Windows에서 빠른 시작 (Docker Desktop)
+
+배포 없이 윈도우 PC에서 로컬로 시연·실습할 때의 가장 확실한 경로다.
+core(C 모듈)는 `memmem`·pthread·POSIX 소켓 같은 리눅스 전용 기능을 쓰므로
+윈도우 네이티브 빌드는 되지 않는다. Docker는 리눅스 컨테이너 안에서
+빌드하므로 이 이식성 문제를 전부 우회한다.
+
+아래는 모두 **PowerShell** 기준이다.
+
+### 0. 사전 설치 (최초 1회)
+
+```powershell
+winget install -e --id Git.Git
+winget install -e --id Docker.DockerDesktop
+```
+
+설치 후 **Docker Desktop을 실행**하고 엔진(고래 아이콘)이 초록색이 될 때까지
+기다린다. 최초 실행 시 WSL2 설치를 요구하면 안내대로 진행 후 재부팅한다.
+
+```powershell
+docker version
+docker compose version
+```
+
+### 1. 클론
+
+```powershell
+cd ~
+git clone https://github.com/0x1eso/web-honeypot.git
+cd web-honeypot
+```
+
+### 2. 빌드 + 실행
+
+```powershell
+docker compose up --build -d
+```
+
+최초 1회는 이미지 빌드로 5~8분 걸린다. 세 컨테이너가 모두 `(healthy)`인지 확인:
+
+```powershell
+docker compose ps
+docker compose logs -f   # 부팅 로그 확인 (Ctrl+C 로 빠져나옴)
+```
+
+### 3. 접속
+
+브라우저에서 `http://localhost:3000` 으로 연다. 처음엔 수집 데이터가 없어
+화면이 비어 있다 — 다음 단계로 채운다.
+
+### 4. 샘플 공격 트래픽 주입 (대시보드 채우기)
+
+honeypot 본체(core, 8080)에 가짜 공격을 보낸다. 윈도우 기본 `curl.exe`를
+쓴다(PowerShell의 `curl` 별칭과 구분하려고 `.exe`를 명시):
+
+```powershell
+# SQLi
+curl.exe "http://localhost:8080/login?id=admin%27%20OR%201=1--"
+
+# XSS
+curl.exe -X POST --data "c=<script>alert(1)</script>" "http://localhost:8080/comment"
+
+# 스캔 (민감 경로 탐색)
+curl.exe "http://localhost:8080/.env"
+curl.exe "http://localhost:8080/wp-admin"
+curl.exe "http://localhost:8080/etc/passwd"
+
+# 브루트포스 (같은 IP로 로그인 12회 → 60초/10회 임계 초과)
+1..12 | ForEach-Object { curl.exe -X POST --data "user=admin&password=x" "http://localhost:8080/login" }
+
+# 기타 (정상처럼 보이는 요청)
+curl.exe "http://localhost:8080/"
+```
+
+주입 후 10~15초 기다린다(분류기 5초 주기 + 대시보드 10초 폴링). 곧 다섯
+유형이 색깔별로 카드·차트·로그 표에 채워진다. 모든 요청이 같은 PC에서 가니
+공격자 IP는 `127.0.0.1`로 기록된다(정상).
+
+### 5. 종료 / 정리
+
+```powershell
+docker compose stop     # 잠깐 멈춤 (데이터 유지)
+docker compose start    # 다시 시작
+docker compose down     # 컨테이너 제거 (수집 데이터는 볼륨에 유지)
+docker compose down -v  # 수집 데이터까지 삭제
+```
+
+### 6. 트러블슈팅
+
+| 증상 | 해결 |
+|---|---|
+| `error during connect ... docker_engine` | Docker Desktop이 안 켜짐 → 실행 후 엔진 초록 확인 |
+| `ports are not available: ... 3000` (또는 8080) | 포트 점유 → 점유 앱 종료, 또는 `docker-compose.yml`의 `"3000:8080"`을 `"3001:8080"`으로 바꾼 뒤 `http://localhost:3001` |
+| 대시보드는 뜨는데 숫자가 0 | 4번 주입 누락 또는 주입 후 15초 미경과 |
+| `dashboard`가 `(unhealthy)`/재시작 반복 | `docker compose logs dashboard`로 원인 확인 |
+
+---
+
 ## 주의사항
 
 이 프로젝트는 학습 목적으로 제작되었다. 반드시 Docker로 격리된 환경 또는 사설 네트워크에서만 운영해야 한다. 공인 IP 환경에 직접 노출할 경우 실제 공격 트래픽이 유입되며, 이에 따른 법적·윤리적 책임은 운영자에게 있다.
